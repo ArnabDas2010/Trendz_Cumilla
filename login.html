@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Login — TRENDZ COMILLA</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</head>
+<body style="min-height:100vh;display:flex;flex-direction:column;">
+    <header>
+        <div class="header-main">
+            <a href="index.html" class="logo">TRENDZ <span>COMILLA</span></a>
+        </div>
+    </header>
+
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px 16px;">
+        <div style="width:100%;max-width:380px;">
+            <div class="text-center" style="margin-bottom:28px;">
+                <div style="width:60px;height:60px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:22px;color:var(--accent);">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h2 style="font-family:var(--font-serif);font-size:26px;font-weight:900;margin-bottom:4px;">Welcome Back</h2>
+                <p style="color:var(--text-muted);font-size:13px;">Sign in to your TRENDZ account</p>
+            </div>
+
+            <div class="form-card">
+                <!-- Google Sign-In -->
+                <button class="btn btn-google" onclick="handleGoogle()" id="googleBtn">
+                    <svg class="g-icon" viewBox="0 0 48 48">
+                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                    </svg>
+                    Continue with Google
+                </button>
+
+                <div class="or-divider">OR</div>
+
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="loginEmail" required placeholder="name@example.com" autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="loginPassword" required placeholder="••••••••" autocomplete="current-password">
+                    </div>
+                    <div id="loginError" style="display:none;background:#fff5f5;border:1px solid #ffd7d7;border-radius:var(--radius-md);padding:10px 14px;margin-bottom:14px;font-size:13px;color:#c0392b;"></div>
+                    <button type="submit" class="btn btn-primary">
+                        SIGN IN <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </form>
+            </div>
+
+            <p class="text-center mt-20" style="font-size:13px;color:var(--text-muted);">
+                New here? <a href="register.html" style="color:var(--accent);font-weight:700;text-decoration:none;">Create Account</a>
+            </p>
+        </div>
+    </div>
+
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        // Redirect if already logged in
+        auth.onAuthStateChanged(u => {
+            if (u) window.location.href = 'index.html';
+        });
+
+        function handleGoogle() {
+            const btn = document.getElementById('googleBtn');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Connecting...';
+            btn.disabled = true;
+            signInWithGoogle().catch(err => {
+                btn.innerHTML = '<svg class="g-icon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg> Continue with Google';
+                btn.disabled = false;
+                if (err.code !== 'auth/popup-closed-by-user') alert(err.message);
+            });
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const pass  = document.getElementById('loginPassword').value;
+            const btn   = e.target.querySelector('button[type="submit"]');
+            const errEl = document.getElementById('loginError');
+            errEl.style.display = 'none';
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+            btn.disabled = true;
+
+            auth.signInWithEmailAndPassword(email, pass)
+                .then(cred => getUserRole(cred.user.uid))
+                .then(role => {
+                    if (role === 'owner') window.location.href = 'owner.html';
+                    else if (role === 'admin') window.location.href = 'admin.html';
+                    else window.location.href = 'index.html';
+                })
+                .catch(err => {
+                    errEl.textContent = err.message;
+                    errEl.style.display = 'block';
+                    btn.innerHTML = 'SIGN IN <i class="fa-solid fa-arrow-right"></i>';
+                    btn.disabled = false;
+                });
+        });
+    </script>
+</body>
+</html>

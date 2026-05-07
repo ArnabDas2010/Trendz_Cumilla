@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>My Bag — TRENDZ COMILLA</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-main">
+            <a href="index.html" class="action-btn" style="font-size:16px;width:auto;padding:0 8px 0 0;text-decoration:none;color:var(--text-main);">
+                <i class="fa-solid fa-chevron-left"></i>
+            </a>
+            <span style="font-family:var(--font-serif);font-size:18px;font-weight:700;">My Bag</span>
+        </div>
+    </header>
+
+    <main class="container" style="padding-top:20px;">
+        <div id="cartContent">
+            <div class="text-center" style="padding:60px 0;">
+                <div class="loading-spinner" style="margin:0 auto;"></div>
+            </div>
+        </div>
+
+        <div id="checkoutSection" style="display:none; margin-top:24px;">
+            <div class="form-card">
+                <h3 style="font-family:var(--font-serif);font-size:18px;font-weight:700;margin-bottom:20px;color:var(--primary);">
+                    <i class="fa-solid fa-truck-fast" style="color:var(--accent);"></i> Delivery & Payment
+                </h3>
+                <form id="checkoutForm">
+                    <div class="form-group">
+                        <label>Delivery Address</label>
+                        <textarea id="address" required placeholder="House no, Road, Area, Comilla..." style="height:90px;resize:none;"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Payment Method</label>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                            <label class="payment-option selected" id="bkashOpt" onclick="selectPayment('bkash')">
+                                <input type="radio" name="pay" value="bkash" checked style="display:none;">
+                                <i class="fa-solid fa-wallet" style="color:#d12053;"></i> bKash
+                            </label>
+                            <label class="payment-option" id="nagadOpt" onclick="selectPayment('nagad')">
+                                <input type="radio" name="pay" value="nagad" style="display:none;">
+                                <i class="fa-solid fa-money-bill-1-wave" style="color:#f44336;"></i> Nagad
+                            </label>
+                        </div>
+                    </div>
+                    <div id="payInstructions" style="background:var(--accent-light);padding:18px;border-radius:var(--radius-lg);border:1px solid #e8d5b0;margin-bottom:20px;text-align:center;">
+                        <p style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Send <strong>৳<span id="payAmt">0</span></strong> to:</p>
+                        <div style="font-size:22px;font-weight:900;color:var(--primary);letter-spacing:2px;margin:8px 0;">01700000000</div>
+                        <p style="font-size:11px;color:var(--text-muted);"><i class="fa-solid fa-circle-info"></i> Send as "Personal" · Use your phone as reference</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div class="form-group">
+                            <label>Sender Number</label>
+                            <input type="text" id="senderNum" required placeholder="01XXXXXXXXX">
+                        </div>
+                        <div class="form-group">
+                            <label>Transaction ID</label>
+                            <input type="text" id="trxId" required placeholder="TRX123456">
+                        </div>
+                    </div>
+                    <div id="orderSummary" style="background:var(--surface);padding:16px;border-radius:var(--radius-md);border:1px dashed var(--border);margin-bottom:20px;"></div>
+                    <button type="submit" class="btn btn-primary" style="padding:15px;font-size:14px;">
+                        PLACE ORDER <i class="fa-solid fa-circle-check"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        <div class="spacer-40"></div>
+    </main>
+
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        let payMethod = 'bkash';
+
+        function selectPayment(m) {
+            payMethod = m;
+            document.getElementById('bkashOpt').classList.toggle('selected', m === 'bkash');
+            document.getElementById('nagadOpt').classList.toggle('selected', m === 'nagad');
+        }
+
+        function renderCart() {
+            const cart = getLocalCart();
+            const content = document.getElementById('cartContent');
+            const checkout = document.getElementById('checkoutSection');
+
+            if (cart.length === 0) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fa-solid fa-bag-shopping" style="font-size:52px;color:var(--border-dark);margin-bottom:16px;"></i>
+                        <p style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:6px;">Your bag is empty</p>
+                        <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px;">Discover our latest fashion collection</p>
+                        <a href="index.html" class="btn btn-accent" style="width:auto;padding:12px 28px;">SHOP NOW</a>
+                    </div>`;
+                checkout.style.display = 'none';
+                return;
+            }
+
+            checkout.style.display = 'block';
+            let html = '<div style="display:flex;flex-direction:column;gap:8px;">';
+            let subtotal = 0;
+
+            cart.forEach((item, i) => {
+                const total = item.price * item.quantity;
+                subtotal += total;
+                html += `
+                    <div style="display:flex;gap:12px;padding:14px;background:var(--white);border-radius:var(--radius-lg);border:1px solid var(--border);align-items:center;">
+                        <img src="${item.image}" style="width:70px;height:70px;object-fit:cover;border-radius:var(--radius-md);flex-shrink:0;background:var(--surface);">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:13px;font-weight:500;color:var(--text-main);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.title}</div>
+                            <div style="font-size:15px;font-weight:700;color:var(--primary);">৳${item.price}</div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:0;background:var(--surface);border-radius:50px;border:1px solid var(--border);flex-shrink:0;">
+                            <button onclick="updateQty(${i},-1)" style="border:none;background:transparent;width:32px;height:32px;cursor:pointer;font-size:11px;color:var(--text-main);border-radius:50px 0 0 50px;display:flex;align-items:center;justify-content:center;">
+                                <i class="fa-solid fa-minus"></i>
+                            </button>
+                            <span style="width:28px;text-align:center;font-weight:700;font-size:13px;">${item.quantity}</span>
+                            <button onclick="updateQty(${i},1)" style="border:none;background:transparent;width:32px;height:32px;cursor:pointer;font-size:11px;color:var(--text-main);border-radius:0 50px 50px 0;display:flex;align-items:center;justify-content:center;">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                        </div>
+                        <button onclick="removeItem(${i})" style="border:none;background:transparent;color:#e74c3c;padding:8px;cursor:pointer;flex-shrink:0;">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>`;
+            });
+
+            html += '</div>';
+            content.innerHTML = html;
+
+            const delivery = subtotal >= 500 ? 0 : 60;
+            const total = subtotal + delivery;
+
+            document.getElementById('orderSummary').innerHTML = `
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;">
+                    <span style="color:var(--text-muted);">Subtotal</span>
+                    <span style="font-weight:600;">৳${subtotal}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:10px;font-size:13px;">
+                    <span style="color:var(--text-muted);">Delivery</span>
+                    <span style="font-weight:600;color:${delivery===0?'#1a6b35':'inherit'}">${delivery===0?'FREE ✓':'৳'+delivery}</span>
+                </div>
+                <div style="height:1px;background:var(--border);margin-bottom:10px;"></div>
+                <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;color:var(--primary);">
+                    <span>Total</span><span>৳${total}</span>
+                </div>
+                ${delivery>0?'<p style="font-size:11px;color:var(--text-muted);margin-top:6px;"><i class="fa-solid fa-info-circle"></i> Add ৳'+(500-subtotal)+' more for free delivery</p>':''}
+            `;
+            document.getElementById('payAmt').textContent = total;
+        }
+
+        function updateQty(i, d) {
+            let cart = getLocalCart();
+            cart[i].quantity += d;
+            if (cart[i].quantity <= 0) cart.splice(i, 1);
+            setLocalCart(cart); renderCart(); syncCartWithFirestore();
+        }
+
+        function removeItem(i) {
+            let cart = getLocalCart();
+            cart.splice(i, 1);
+            setLocalCart(cart); renderCart(); syncCartWithFirestore();
+        }
+
+        document.getElementById('checkoutForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!currentUser) { window.location.href = 'login.html'; return; }
+
+            const btn = e.target.querySelector('button');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> PLACING ORDER...';
+            btn.disabled = true;
+
+            const cart = getLocalCart();
+            const total = parseInt(document.getElementById('payAmt').textContent);
+
+            db.collection('orders').add({
+                userId: currentUser.uid,
+                userEmail: currentUser.email,
+                items: cart,
+                total,
+                address: document.getElementById('address').value,
+                paymentMethod: payMethod,
+                senderNumber: document.getElementById('senderNum').value,
+                transactionId: document.getElementById('trxId').value,
+                status: 'Pending',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => {
+                cart.forEach(item => {
+                    db.collection('products').doc(item.id).update({
+                        stock: firebase.firestore.FieldValue.increment(-item.quantity)
+                    });
+                });
+                localStorage.removeItem('cart');
+                db.collection('carts').doc(currentUser.uid).delete();
+                window.location.href = 'dashboard.html';
+            }).catch(err => {
+                alert('Error: ' + err.message);
+                btn.innerHTML = 'PLACE ORDER <i class="fa-solid fa-circle-check"></i>';
+                btn.disabled = false;
+            });
+        });
+
+        renderCart();
+    </script>
+</body>
+</html>

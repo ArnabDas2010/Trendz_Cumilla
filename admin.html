@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Admin — TRENDZ COMILLA</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-main">
+            <a href="index.html" class="logo">TRENDZ <span>COMILLA</span></a>
+            <div class="header-actions" style="margin-left:auto;">
+                <span style="font-size:11px;font-weight:700;color:var(--accent);background:rgba(200,169,110,0.12);padding:4px 10px;border-radius:50px;letter-spacing:0.5px;">ADMIN</span>
+                <button onclick="logout()" class="action-btn" style="color:#c0392b;"><i class="fa-solid fa-power-off"></i></button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container" style="padding-top:20px;">
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalProducts">—</div>
+                <div class="stat-label">Products</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalOrders" style="color:var(--accent);">—</div>
+                <div class="stat-label">Orders</div>
+            </div>
+        </div>
+
+        <section>
+            <div class="section-header">
+                <h2 class="section-title">Inventory</h2>
+                <button class="btn btn-accent" style="width:auto;padding:9px 16px;font-size:12px;" onclick="toggleForm()">
+                    <i class="fa-solid fa-plus"></i> ADD
+                </button>
+            </div>
+
+            <div id="productForm" style="display:none;margin-bottom:20px;">
+                <div class="form-card">
+                    <h4 id="formTitle" style="font-family:var(--font-serif);font-size:17px;font-weight:700;margin-bottom:18px;">New Product</h4>
+                    <form id="pForm">
+                        <input type="hidden" id="pId">
+                        <div class="form-group">
+                            <label>Title</label>
+                            <input type="text" id="pTitle" required placeholder="e.g. Cotton Salwar Kameez">
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                            <div class="form-group">
+                                <label>Price (৳)</label>
+                                <input type="number" id="pPrice" required min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Discount (%)</label>
+                                <input type="number" id="pDiscount" value="0" min="0" max="90">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Image URL</label>
+                            <input type="url" id="pImage" required placeholder="https://...">
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                            <div class="form-group">
+                                <label>Category</label>
+                                <select id="pCategory">
+                                    <option>Men</option>
+                                    <option>Women</option>
+                                    <option>Kids</option>
+                                    <option>Traditional</option>
+                                    <option>Accessories</option>
+                                    <option>Footwear</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Stock</label>
+                                <input type="number" id="pStock" required min="0">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="pDesc" style="height:80px;"></textarea>
+                        </div>
+                        <div style="display:flex;gap:10px;">
+                            <button type="submit" class="btn btn-primary" style="flex:2;">SAVE</button>
+                            <button type="button" class="btn btn-secondary" style="flex:1;" onclick="toggleForm()">CANCEL</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="adminProductList">
+                <div class="text-center" style="padding:40px 0;"><div class="loading-spinner" style="margin:0 auto;"></div></div>
+            </div>
+        </section>
+
+        <section style="margin-top:32px;">
+            <div class="section-header">
+                <h2 class="section-title">Orders</h2>
+            </div>
+            <div id="adminOrderList">
+                <div class="text-center" style="padding:40px 0;"><div class="loading-spinner" style="margin:0 auto;"></div></div>
+            </div>
+        </section>
+        <div class="spacer-80"></div>
+    </main>
+
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        auth.onAuthStateChanged(user => {
+            if (!user) { window.location.href = 'login.html'; return; }
+            getUserRole(user.uid).then(role => {
+                if (role !== 'admin' && role !== 'owner') { window.location.href = 'index.html'; return; }
+                loadData();
+            });
+        });
+
+        function loadData() {
+            db.collection('products').orderBy('updatedAt','desc').onSnapshot(snap => {
+                document.getElementById('totalProducts').textContent = snap.size;
+                renderProducts(snap);
+            });
+            db.collection('orders').orderBy('createdAt','desc').onSnapshot(snap => {
+                document.getElementById('totalOrders').textContent = snap.size;
+                renderOrders(snap);
+            });
+        }
+
+        function renderProducts(snap) {
+            const list = document.getElementById('adminProductList');
+            if (snap.empty) { list.innerHTML = '<p class="text-center" style="color:var(--text-muted);padding:30px 0;">No products yet.</p>'; return; }
+            let html = '';
+            snap.forEach(doc => {
+                const p = doc.data();
+                const dp = p.price - (p.price * (p.discount / 100));
+                html += `
+                    <div class="admin-row">
+                        <img src="${p.image}" style="width:48px;height:48px;object-fit:cover;border-radius:var(--radius-md);background:var(--surface);flex-shrink:0;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.title}</div>
+                            <div style="font-size:12px;color:var(--accent);font-weight:700;margin-top:2px;">৳${dp.toFixed(0)} <span style="color:var(--text-muted);font-weight:400;">· Stock: ${p.stock}</span></div>
+                        </div>
+                        <div style="display:flex;gap:6px;flex-shrink:0;">
+                            <button onclick="editProduct('${doc.id}')" class="icon-btn" style="background:var(--surface);color:var(--primary);"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteProduct('${doc.id}')" class="icon-btn" style="background:#fff0f0;color:#c0392b;"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>`;
+            });
+            list.innerHTML = html;
+        }
+
+        function toggleForm() {
+            const f = document.getElementById('productForm');
+            const visible = f.style.display !== 'none';
+            f.style.display = visible ? 'none' : 'block';
+            if (visible) { document.getElementById('pForm').reset(); document.getElementById('pId').value = ''; document.getElementById('formTitle').textContent = 'New Product'; }
+        }
+
+        document.getElementById('pForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const id = document.getElementById('pId').value;
+            const data = {
+                title: document.getElementById('pTitle').value,
+                price: parseFloat(document.getElementById('pPrice').value),
+                discount: parseFloat(document.getElementById('pDiscount').value),
+                image: document.getElementById('pImage').value,
+                category: document.getElementById('pCategory').value,
+                stock: parseInt(document.getElementById('pStock').value),
+                description: document.getElementById('pDesc').value,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            (id ? db.collection('products').doc(id).update(data) : db.collection('products').add(data))
+                .then(() => toggleForm());
+        });
+
+        function editProduct(id) {
+            db.collection('products').doc(id).get().then(doc => {
+                const p = doc.data();
+                document.getElementById('pId').value = doc.id;
+                document.getElementById('pTitle').value = p.title;
+                document.getElementById('pPrice').value = p.price;
+                document.getElementById('pDiscount').value = p.discount;
+                document.getElementById('pImage').value = p.image;
+                document.getElementById('pCategory').value = p.category;
+                document.getElementById('pStock').value = p.stock;
+                document.getElementById('pDesc').value = p.description || '';
+                document.getElementById('formTitle').textContent = 'Edit Product';
+                document.getElementById('productForm').style.display = 'block';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        }
+
+        function deleteProduct(id) {
+            if (confirm('Delete this product?')) db.collection('products').doc(id).delete();
+        }
+
+        function renderOrders(snap) {
+            const list = document.getElementById('adminOrderList');
+            if (snap.empty) { list.innerHTML = '<p class="text-center" style="color:var(--text-muted);padding:30px 0;">No orders yet.</p>'; return; }
+            let html = '';
+            snap.forEach(doc => {
+                const o = doc.data();
+                html += `
+                    <div class="order-card">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                            <strong style="color:var(--accent);font-size:12px;">#${doc.id.substring(0,8).toUpperCase()}</strong>
+                            <span style="font-size:11px;color:var(--text-muted);">${o.userEmail}</span>
+                        </div>
+                        <div style="background:var(--surface);padding:12px;border-radius:var(--radius-md);margin-bottom:12px;font-size:13px;border:1px solid var(--border);">
+                            <div style="margin-bottom:5px;"><i class="fa-solid fa-money-bill" style="color:var(--accent);"></i> ৳${o.total} via ${o.paymentMethod.toUpperCase()}</div>
+                            <div style="margin-bottom:5px;"><i class="fa-solid fa-fingerprint" style="color:var(--text-muted);"></i> ${o.transactionId}</div>
+                            <div><i class="fa-solid fa-phone" style="color:var(--text-muted);"></i> ${o.senderNumber}</div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);flex-shrink:0;">Status:</span>
+                            <select onchange="updateStatus('${doc.id}',this.value)" style="flex:1;padding:8px 10px;border-radius:var(--radius-md);border:1.5px solid var(--border);font-size:12px;font-weight:600;background:var(--white);font-family:var(--font-sans);outline:none;">
+                                <option ${o.status==='Pending'?'selected':''}>Pending</option>
+                                <option ${o.status==='Confirmed'?'selected':''}>Confirmed</option>
+                                <option ${o.status==='Shipped'?'selected':''}>Shipped</option>
+                                <option ${o.status==='Delivered'?'selected':''}>Delivered</option>
+                            </select>
+                        </div>
+                    </div>`;
+            });
+            list.innerHTML = html;
+        }
+
+        function updateStatus(id, status) {
+            db.collection('orders').doc(id).update({ status });
+        }
+    </script>
+</body>
+</html>
