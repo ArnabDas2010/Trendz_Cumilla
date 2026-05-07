@@ -16,22 +16,30 @@ if (!firebase.apps.length) {
 const auth = firebase.auth();
 const db   = firebase.firestore();
 
-// Google Auth Provider
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-// Role checking
 function getUserRole(uid) {
     return db.collection('users').doc(uid).get().then(doc => {
         return doc.exists ? doc.data().role : 'user';
     });
 }
 
-// Google Sign-In — auto create user doc if first time
+// ── Redirect-based Google Sign-In (mobile safe) ──────────
 function signInWithGoogle() {
-    return auth.signInWithPopup(googleProvider).then(result => {
+    // Store intent so we can redirect after coming back
+    sessionStorage.setItem('googleAuthPending', '1');
+    return auth.signInWithRedirect(googleProvider);
+}
+
+// ── Handle redirect result on page load ──────────────────
+function handleGoogleRedirectResult() {
+    return auth.getRedirectResult().then(result => {
+        if (!result || !result.user) return null;
+
         const user    = result.user;
         const userRef = db.collection('users').doc(user.uid);
+
         return userRef.get().then(doc => {
             if (!doc.exists) {
                 return userRef.set({
@@ -44,11 +52,16 @@ function signInWithGoogle() {
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
             }
+        }).then(() => getUserRole(user.uid))
+          .then(role => {
+            sessionStorage.removeItem('googleAuthPending');
+            if (role === 'owner')      window.location.href = 'owner.html';
+            else if (role === 'admin') window.location.href = 'admin.html';
+            else                       window.location.href = 'index.html';
         });
-    }).then(() => getUserRole(auth.currentUser.uid))
-      .then(role => {
-        if (role === 'owner')      window.location.href = 'owner.html';
-        else if (role === 'admin') window.location.href = 'admin.html';
-        else                       window.location.href = 'index.html';
+    }).catch(err => {
+        sessionStorage.removeItem('googleAuthPending');
+        console.error('Google redirect error:', err);
+        return Promise.reject(err);
     });
 }
