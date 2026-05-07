@@ -11,26 +11,38 @@ auth.onAuthStateChanged(function(user) {
         if (authLinks) authLinks.style.display = 'none';
         if (userMenu)  userMenu.style.display = 'flex';
 
-        // Ensure user doc exists (covers Google sign-in edge cases)
         const userRef = db.collection('users').doc(user.uid);
         userRef.get().then(doc => {
+            // Create doc if missing (edge case)
             if (!doc.exists) {
-                userRef.set({
-                    name: user.displayName || 'Fashion Lover',
-                    email: user.email,
-                    photoURL: user.photoURL || '',
-                    role: 'user',
-                    status: 'active',
-                    provider: user.providerData[0]?.providerId || 'email',
+                return userRef.set({
+                    name:      user.displayName || 'Fashion Lover',
+                    email:     user.email || '',
+                    photoURL:  user.photoURL || '',
+                    role:      'user',
+                    status:    'active',
+                    provider:  user.providerData[0] ? user.providerData[0].providerId : 'email',
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
+                }).then(() => userRef.get());
             }
+            return doc;
+        }).then(doc => {
+            const u = doc.data ? doc.data() : doc;
+
+            // Show profile photo in header if available
+            const profileBtn = document.getElementById('profileBtn');
+            const photo = (u && u.photoURL) || user.photoURL;
+            if (profileBtn && photo) {
+                profileBtn.innerHTML = `<img src="${photo}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);">`;
+            }
+
             return getUserRole(user.uid);
         }).then(role => {
             userRole = role;
             updateRoleSpecificUI();
             syncCartWithFirestore();
         });
+
     } else {
         if (authLinks) authLinks.style.display = 'flex';
         if (userMenu)  userMenu.style.display = 'none';

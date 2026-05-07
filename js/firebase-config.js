@@ -17,22 +17,24 @@ const auth = firebase.auth();
 const db   = firebase.firestore();
 
 const googleProvider = new firebase.auth.GoogleAuthProvider();
+googleProvider.addScope('profile');
+googleProvider.addScope('email');
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
+// ── Role fetch ────────────────────────────────────────────
 function getUserRole(uid) {
     return db.collection('users').doc(uid).get().then(doc => {
         return doc.exists ? doc.data().role : 'user';
     });
 }
 
-// ── Redirect-based Google Sign-In (mobile safe) ──────────
+// ── Google Redirect Sign-In ───────────────────────────────
 function signInWithGoogle() {
-    // Store intent so we can redirect after coming back
     sessionStorage.setItem('googleAuthPending', '1');
     return auth.signInWithRedirect(googleProvider);
 }
 
-// ── Handle redirect result on page load ──────────────────
+// ── Process redirect result (call on every page load) ─────
 function handleGoogleRedirectResult() {
     return auth.getRedirectResult().then(result => {
         if (!result || !result.user) return null;
@@ -42,14 +44,21 @@ function handleGoogleRedirectResult() {
 
         return userRef.get().then(doc => {
             if (!doc.exists) {
+                // First time Google login — save full profile
                 return userRef.set({
-                    name:      user.displayName || 'Fashion Lover',
-                    email:     user.email,
-                    photoURL:  user.photoURL || '',
+                    name:      user.displayName  || 'Fashion Lover',
+                    email:     user.email        || '',
+                    photoURL:  user.photoURL     || '',
                     role:      'user',
                     status:    'active',
                     provider:  'google',
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } else {
+                // Returning Google user — update name/photo in case they changed it
+                return userRef.update({
+                    name:     user.displayName || doc.data().name,
+                    photoURL: user.photoURL    || doc.data().photoURL || ''
                 });
             }
         }).then(() => getUserRole(user.uid))
@@ -59,9 +68,9 @@ function handleGoogleRedirectResult() {
             else if (role === 'admin') window.location.href = 'admin.html';
             else                       window.location.href = 'index.html';
         });
+
     }).catch(err => {
         sessionStorage.removeItem('googleAuthPending');
-        console.error('Google redirect error:', err);
         return Promise.reject(err);
     });
 }

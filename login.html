@@ -3,39 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Login — TRENDZ COMILLA</title>
+    <title>Sign In — TRENDZ COMILLA</title>
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <style>
+        .tab-bar {
+            display: flex;
+            background: var(--surface);
+            border-radius: var(--radius-md);
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            border-radius: calc(var(--radius-md) - 2px);
+            font-family: var(--font-sans);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 0.3px;
+        }
+        .tab-btn.active {
+            background: var(--white);
+            color: var(--primary);
+            box-shadow: var(--shadow-sm);
+        }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+    </style>
 </head>
 <body style="min-height:100vh;display:flex;flex-direction:column;">
     <header>
         <div class="header-main">
+            <a href="index.html" class="action-btn" style="font-size:16px;width:auto;padding:0 8px 0 0;text-decoration:none;color:var(--text-main);">
+                <i class="fa-solid fa-chevron-left"></i>
+            </a>
             <a href="index.html" class="logo">TRENDZ <span>COMILLA</span></a>
         </div>
     </header>
 
-    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px 16px;">
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px 16px;">
         <div style="width:100%;max-width:380px;">
 
-            <div class="text-center" style="margin-bottom:28px;">
-                <div style="width:60px;height:60px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:22px;color:var(--accent);">
-                    <i class="fa-solid fa-lock"></i>
+            <!-- Brand -->
+            <div class="text-center" style="margin-bottom:24px;">
+                <div style="width:56px;height:56px;background:var(--primary);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:20px;color:var(--accent);">
+                    <i class="fa-solid fa-shirt"></i>
                 </div>
-                <h2 style="font-family:var(--font-serif);font-size:26px;font-weight:900;margin-bottom:4px;">Welcome Back</h2>
-                <p style="color:var(--text-muted);font-size:13px;">Sign in to your TRENDZ account</p>
+                <h2 style="font-family:var(--font-serif);font-size:24px;font-weight:900;margin-bottom:2px;">TRENDZ COMILLA</h2>
+                <p style="color:var(--text-muted);font-size:12px;">Premium Fashion — Comilla</p>
             </div>
 
-            <!-- Redirect pending indicator -->
-            <div id="redirectLoader" style="display:none;text-align:center;padding:20px 0 10px;">
+            <!-- Redirect loader -->
+            <div id="redirectLoader" style="display:none;text-align:center;padding:30px 0;">
                 <div class="loading-spinner" style="margin:0 auto 12px;"></div>
                 <p style="font-size:13px;color:var(--text-muted);">Signing in with Google...</p>
             </div>
 
-            <div class="form-card" id="formCard">
-                <!-- Google -->
+            <div id="mainCard" class="form-card">
+
+                <!-- Google Button -->
                 <button class="btn btn-google" onclick="handleGoogle()" id="googleBtn">
                     <svg class="g-icon" viewBox="0 0 48 48">
                         <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -48,53 +83,107 @@
 
                 <div class="or-divider">OR</div>
 
-                <form id="loginForm">
-                    <div class="form-group">
-                        <label>Email Address</label>
-                        <input type="email" id="loginEmail" required placeholder="name@example.com" autocomplete="email">
-                    </div>
-                    <div class="form-group">
-                        <label>Password</label>
-                        <input type="password" id="loginPassword" required placeholder="••••••••" autocomplete="current-password">
-                    </div>
-                    <div id="loginError" style="display:none;background:#fff5f5;border:1px solid #ffd7d7;border-radius:var(--radius-md);padding:10px 14px;margin-bottom:14px;font-size:13px;color:#c0392b;"></div>
-                    <button type="submit" id="loginBtn" class="btn btn-primary">
-                        SIGN IN <i class="fa-solid fa-arrow-right"></i>
-                    </button>
-                </form>
-            </div>
+                <!-- Tab Bar -->
+                <div class="tab-bar">
+                    <button class="tab-btn active" onclick="switchTab('login')" id="tabLogin">SIGN IN</button>
+                    <button class="tab-btn" onclick="switchTab('register')" id="tabRegister">CREATE ACCOUNT</button>
+                </div>
 
-            <p class="text-center mt-20" style="font-size:13px;color:var(--text-muted);">
-                New here? <a href="register.html" style="color:var(--accent);font-weight:700;text-decoration:none;">Create Account</a>
-            </p>
+                <!-- Error box (shared) -->
+                <div id="authError" style="display:none;background:#fff5f5;border:1px solid #ffd7d7;border-radius:var(--radius-md);padding:10px 14px;margin-bottom:14px;font-size:13px;color:#c0392b;"></div>
+
+                <!-- LOGIN PANEL -->
+                <div class="tab-panel active" id="panelLogin">
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label>Email Address</label>
+                            <input type="email" id="loginEmail" required placeholder="name@example.com" autocomplete="email">
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" id="loginPassword" required placeholder="••••••••" autocomplete="current-password">
+                        </div>
+                        <button type="submit" id="loginBtn" class="btn btn-primary">
+                            SIGN IN <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </form>
+                    <p class="text-center" style="margin-top:14px;font-size:12px;color:var(--text-muted);">
+                        No account? <a href="javascript:switchTab('register')" style="color:var(--accent);font-weight:700;text-decoration:none;">Create one free</a>
+                    </p>
+                </div>
+
+                <!-- REGISTER PANEL -->
+                <div class="tab-panel" id="panelRegister">
+                    <form id="registerForm">
+                        <div class="form-group">
+                            <label>Full Name</label>
+                            <input type="text" id="regName" required placeholder="Your full name" autocomplete="name">
+                        </div>
+                        <div class="form-group">
+                            <label>Email Address</label>
+                            <input type="email" id="regEmail" required placeholder="name@example.com" autocomplete="email">
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" id="regPassword" required minlength="6" placeholder="At least 6 characters" autocomplete="new-password">
+                        </div>
+                        <button type="submit" id="regBtn" class="btn btn-accent">
+                            CREATE ACCOUNT <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </form>
+                    <p class="text-center" style="margin-top:14px;font-size:12px;color:var(--text-muted);">
+                        Already joined? <a href="javascript:switchTab('login')" style="color:var(--accent);font-weight:700;text-decoration:none;">Sign in</a>
+                    </p>
+                </div>
+
+            </div>
         </div>
     </div>
 
     <script src="js/firebase-config.js"></script>
     <script src="js/auth.js"></script>
     <script>
-        // Handle Google redirect result first
+        // ── Tab switching ─────────────────────────
+        function switchTab(tab) {
+            document.getElementById('authError').style.display = 'none';
+            ['login','register'].forEach(t => {
+                document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('active', t === tab);
+                document.getElementById('tab'   + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('active', t === tab);
+            });
+        }
+
+        // ── Handle Google redirect result ─────────
         if (sessionStorage.getItem('googleAuthPending')) {
             document.getElementById('redirectLoader').style.display = 'block';
-            document.getElementById('formCard').style.display = 'none';
+            document.getElementById('mainCard').style.display = 'none';
         }
 
         handleGoogleRedirectResult().catch(err => {
             document.getElementById('redirectLoader').style.display = 'none';
-            document.getElementById('formCard').style.display = 'block';
+            document.getElementById('mainCard').style.display = 'block';
             if (err && err.code !== 'auth/no-current-user') {
-                const errEl = document.getElementById('loginError');
-                errEl.textContent = err.message || 'Google sign-in failed. Try again.';
-                errEl.style.display = 'block';
+                showErr(err.message || 'Google sign-in failed.');
             }
         });
 
-        // Redirect if already logged in (normal session)
+        // ── Redirect if already logged in ─────────
         auth.onAuthStateChanged(u => {
-            if (u && !sessionStorage.getItem('googleAuthPending')) {
-                window.location.href = 'index.html';
-            }
+            if (u && !sessionStorage.getItem('googleAuthPending')) redirect(u);
         });
+
+        function redirect(u) {
+            getUserRole(u.uid).then(role => {
+                if (role === 'owner')      window.location.href = 'owner.html';
+                else if (role === 'admin') window.location.href = 'admin.html';
+                else                       window.location.href = 'index.html';
+            });
+        }
+
+        function showErr(msg) {
+            const el = document.getElementById('authError');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
 
         function handleGoogle() {
             const btn = document.getElementById('googleBtn');
@@ -103,30 +192,57 @@
             signInWithGoogle();
         }
 
+        // ── Email/Password Sign In ─────────────────
         document.getElementById('loginForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const email = document.getElementById('loginEmail').value;
-            const pass  = document.getElementById('loginPassword').value;
-            const btn   = document.getElementById('loginBtn');
-            const errEl = document.getElementById('loginError');
-            errEl.style.display = 'none';
+            const btn = document.getElementById('loginBtn');
+            document.getElementById('authError').style.display = 'none';
             btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
             btn.disabled = true;
 
-            auth.signInWithEmailAndPassword(email, pass)
-                .then(cred => getUserRole(cred.user.uid))
-                .then(role => {
-                    if (role === 'owner')      window.location.href = 'owner.html';
-                    else if (role === 'admin') window.location.href = 'admin.html';
-                    else                       window.location.href = 'index.html';
-                })
-                .catch(err => {
-                    errEl.textContent = err.message;
-                    errEl.style.display = 'block';
-                    btn.innerHTML = 'SIGN IN <i class="fa-solid fa-arrow-right"></i>';
-                    btn.disabled = false;
-                });
+            auth.signInWithEmailAndPassword(
+                document.getElementById('loginEmail').value,
+                document.getElementById('loginPassword').value
+            ).then(cred => redirect(cred.user))
+             .catch(err => {
+                showErr(err.message);
+                btn.innerHTML = 'SIGN IN <i class="fa-solid fa-arrow-right"></i>';
+                btn.disabled = false;
+             });
         });
+
+        // ── Email/Password Register ────────────────
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const btn  = document.getElementById('regBtn');
+            const name = document.getElementById('regName').value.trim();
+            document.getElementById('authError').style.display = 'none';
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+            btn.disabled = true;
+
+            auth.createUserWithEmailAndPassword(
+                document.getElementById('regEmail').value,
+                document.getElementById('regPassword').value
+            ).then(cred => db.collection('users').doc(cred.user.uid).set({
+                name,
+                email:     cred.user.email,
+                photoURL:  '',
+                role:      'user',
+                status:    'active',
+                provider:  'email',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            })).then(() => { window.location.href = 'index.html'; })
+              .catch(err => {
+                showErr(err.message);
+                btn.innerHTML = 'CREATE ACCOUNT <i class="fa-solid fa-arrow-right"></i>';
+                btn.disabled = false;
+              });
+        });
+
+        // Open register tab if URL has ?tab=register
+        if (new URLSearchParams(window.location.search).get('tab') === 'register') {
+            switchTab('register');
+        }
     </script>
 </body>
 </html>
