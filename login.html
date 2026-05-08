@@ -153,22 +153,34 @@
         }
 
         // ── Handle Google redirect result ─────────
-        if (sessionStorage.getItem('googleAuthPending')) {
+        // Block onAuthStateChanged from racing with redirect result handler
+        var _handlingRedirect = !!sessionStorage.getItem('googleAuthPending');
+
+        if (_handlingRedirect) {
             document.getElementById('redirectLoader').style.display = 'block';
             document.getElementById('mainCard').style.display = 'none';
         }
 
-        handleGoogleRedirectResult().catch(err => {
-            document.getElementById('redirectLoader').style.display = 'none';
-            document.getElementById('mainCard').style.display = 'block';
-            if (err && err.code !== 'auth/no-current-user') {
-                showErr(err.message || 'Google sign-in failed.');
-            }
-        });
+        handleGoogleRedirectResult()
+            .then(function() {
+                _handlingRedirect = false;
+            })
+            .catch(function(err) {
+                _handlingRedirect = false;
+                sessionStorage.removeItem('googleAuthPending');
+                document.getElementById('redirectLoader').style.display = 'none';
+                document.getElementById('mainCard').style.display = 'block';
+                if (err && err.code !== 'auth/no-current-user') {
+                    showErr(err.message || 'Google sign-in failed. Please try again.');
+                }
+            });
 
         // ── Redirect if already logged in ─────────
-        auth.onAuthStateChanged(u => {
-            if (u && !sessionStorage.getItem('googleAuthPending')) redirect(u);
+        // Skip during Google redirect to avoid race condition
+        auth.onAuthStateChanged(function(u) {
+            if (u && !_handlingRedirect && !sessionStorage.getItem('googleAuthPending')) {
+                redirect(u);
+            }
         });
 
         function redirect(u) {

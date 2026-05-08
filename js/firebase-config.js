@@ -36,15 +36,19 @@ function signInWithGoogle() {
 
 // ── Process redirect result (call on every page load) ─────
 function handleGoogleRedirectResult() {
-    return auth.getRedirectResult().then(result => {
-        if (!result || !result.user) return null;
+    return auth.getRedirectResult().then(function(result) {
+        // No redirect happened (normal page load) — resolve cleanly
+        if (!result || !result.user) {
+            sessionStorage.removeItem('googleAuthPending');
+            return null;
+        }
 
-        const user    = result.user;
-        const userRef = db.collection('users').doc(user.uid);
+        var user    = result.user;
+        var userRef = db.collection('users').doc(user.uid);
 
-        return userRef.get().then(doc => {
+        return userRef.get().then(function(doc) {
             if (!doc.exists) {
-                // First time Google login — save full profile
+                // First time Google login — create profile
                 return userRef.set({
                     name:      user.displayName  || 'Fashion Lover',
                     email:     user.email        || '',
@@ -55,21 +59,25 @@ function handleGoogleRedirectResult() {
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
             } else {
-                // Returning Google user — update name/photo in case they changed it
+                // Returning Google user — sync name/photo
                 return userRef.update({
                     name:     user.displayName || doc.data().name,
                     photoURL: user.photoURL    || doc.data().photoURL || ''
                 });
             }
-        }).then(() => getUserRole(user.uid))
-          .then(role => {
+        }).then(function() {
+            return getUserRole(user.uid);
+        }).then(function(role) {
             sessionStorage.removeItem('googleAuthPending');
-            if (role === 'owner')      window.location.href = 'owner.html';
-            else if (role === 'admin') window.location.href = 'admin.html';
-            else                       window.location.href = 'index.html';
+            // Small delay to ensure Firestore write is settled before redirect
+            setTimeout(function() {
+                if (role === 'owner')      window.location.href = 'owner.html';
+                else if (role === 'admin') window.location.href = 'admin.html';
+                else                       window.location.href = 'index.html';
+            }, 300);
         });
 
-    }).catch(err => {
+    }).catch(function(err) {
         sessionStorage.removeItem('googleAuthPending');
         return Promise.reject(err);
     });
