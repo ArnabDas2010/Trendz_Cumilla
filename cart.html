@@ -173,35 +173,85 @@
             e.preventDefault();
             if (!currentUser) { window.location.href = 'login.html'; return; }
 
-            const btn = e.target.querySelector('button');
-            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> PLACING ORDER...';
+            // Phone number validation (BD format)
+            const senderNum = document.getElementById('senderNum').value.trim();
+            if (!/^01[3-9]\d{8}$/.test(senderNum)) {
+                alert('Please enter a valid 11-digit Bangladesh phone number (e.g. 01XXXXXXXXX)');
+                return;
+            }
+
+            const trxId = document.getElementById('trxId').value.trim();
+            if (trxId.length < 4) {
+                alert('Please enter a valid Transaction ID');
+                return;
+            }
+
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> CHECKING STOCK...';
             btn.disabled = true;
 
             const cart = getLocalCart();
             const total = parseInt(document.getElementById('payAmt').textContent);
 
-            db.collection('orders').add({
-                userId: currentUser.uid,
-                userEmail: currentUser.email,
-                items: cart,
-                total,
-                address: document.getElementById('address').value,
-                paymentMethod: payMethod,
-                senderNumber: document.getElementById('senderNum').value,
-                transactionId: document.getElementById('trxId').value,
-                status: 'Pending',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            }).then(() => {
-                cart.forEach(item => {
-                    db.collection('products').doc(item.id).update({
-                        stock: firebase.firestore.FieldValue.increment(-item.quantity)
+            // ── Stock validation before placing order ──
+            const stockChecks = cart.map(item =>
+                db.collection('products').doc(item.id).get().then(doc => {
+                    if (!doc.exists) return { ok: false, title: item.title, reason: 'not found' };
+                    const available = doc.data().stock;
+                    if (available < item.quantity) {
+                        return { ok: false, title: item.title, available };
+                    }
+                    return { ok: true };
+                })
+            );
+
+            Promise.all(stockChecks).then(results => {
+                const failed = results.filter(r => !r.ok);
+                if (failed.length > 0) {
+                    const msgs = failed.map(r =>
+                        r.available === 0 || r.available === undefined
+                            ? `"${r.title}" is out of stock`
+                            : `"${r.title}" — only ${r.available} left in stock`
+                    ).join('\n');
+                    alert('Stock issue:\n' + msgs + '\n\nPlease update your cart.');
+                    btn.innerHTML = 'PLACE ORDER <i class="fa-solid fa-circle-check"></i>';
+                    btn.disabled = false;
+                    return;
+                }
+
+                btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> PLACING ORDER...';
+
+                // ── Place order ──
+                db.collection('orders').add({
+                    userId: currentUser.uid,
+                    userEmail: currentUser.email,
+                    items: cart,
+                    total,
+                    address: document.getElementById('address').value.trim(),
+                    paymentMethod: payMethod,
+                    senderNumber: senderNum,
+                    transactionId: trxId,
+                    status: 'Pending',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => {
+                    // Decrement stock
+                    const batch = db.batch();
+                    cart.forEach(item => {
+                        const ref = db.collection('products').doc(item.id);
+                        batch.update(ref, { stock: firebase.firestore.FieldValue.increment(-item.quantity) });
                     });
+                    return batch.commit();
+                }).then(() => {
+                    localStorage.removeItem('cart');
+                    db.collection('carts').doc(currentUser.uid).delete();
+                    window.location.href = 'dashboard.html';
+                }).catch(err => {
+                    alert('Order failed: ' + err.message);
+                    btn.innerHTML = 'PLACE ORDER <i class="fa-solid fa-circle-check"></i>';
+                    btn.disabled = false;
                 });
-                localStorage.removeItem('cart');
-                db.collection('carts').doc(currentUser.uid).delete();
-                window.location.href = 'dashboard.html';
             }).catch(err => {
-                alert('Error: ' + err.message);
+                alert('Error checking stock: ' + err.message);
                 btn.innerHTML = 'PLACE ORDER <i class="fa-solid fa-circle-check"></i>';
                 btn.disabled = false;
             });

@@ -68,6 +68,14 @@
 
     <script src="js/firebase-config.js"></script>
     <script>
+        // ── SECURITY: Only owner can access setup ──
+        auth.onAuthStateChanged(function(user) {
+            if (!user) { window.location.href = 'login.html'; return; }
+            getUserRole(user.uid).then(function(role) {
+                if (role !== 'owner') { window.location.href = 'index.html'; }
+            });
+        });
+
         const fashionProducts = [
             { title: "Men's Premium Cotton Panjabi", price: 1200, discount: 10, image: "https://images.unsplash.com/photo-1580657018950-c7f7d6a6d990?w=600&q=75", category: "Men", stock: 80, description: "Premium quality cotton panjabi for Eid & special occasions.\n\nSize: S, M, L, XL, XXL\nFabric: 100% Cotton\nWash: Hand wash recommended" },
             { title: "Women's Embroidered Saree", price: 3500, discount: 15, image: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=600&q=75", category: "Women", stock: 40, description: "Elegant embroidered silk blend saree.\n\nLength: 6 meters\nBlouse piece included\nDry clean only" },

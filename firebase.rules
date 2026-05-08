@@ -1,0 +1,167 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─────────────────────────────────────────────
+    //  HELPER FUNCTIONS
+    // ─────────────────────────────────────────────
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    function callerRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isActive() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
+    }
+
+    // Role checks
+    // user  → normal customer
+    // admin → store management (products, orders) + own profile
+    // owner → everything admin can do + admin management (users, announcements)
+    function isAdmin()        { return isAuth() && callerRole() == 'admin'; }
+    function isOwner()        { return isAuth() && callerRole() == 'owner'; }
+    function isAdminOrOwner() { return isAdmin() || isOwner(); }
+
+    function validStr(val, maxLen) {
+      return val is string && val.size() > 0 && val.size() <= maxLen;
+    }
+
+    function validNum(val, mn, mx) {
+      return val is number && val >= mn && val <= mx;
+    }
+
+    // ─────────────────────────────────────────────
+    //  USERS  /users/{uid}
+    //
+    //  user        → read/update own profile (name, photoURL only)
+    //  admin       → read all users (for support), update own profile only
+    //  owner       → read all users, update role/status, delete user docs
+    // ─────────────────────────────────────────────
+    match /users/{uid} {
+
+      allow read: if isSelf(uid) || isAdminOrOwner();
+
+      // Registration: must self-create with role=user
+      allow create: if isSelf(uid)
+        && request.resource.data.role   == 'user'
+        && request.resource.data.status == 'active'
+        && validStr(request.resource.data.name, 80)
+        && validStr(request.resource.data.email, 200);
+
+      allow update: if
+        // Self (any role): only name & photoURL editable, role/status/email locked
+        (isSelf(uid) && isActive()
+          && request.resource.data.role   == resource.data.role
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.email  == resource.data.email)
+        ||
+        // Owner only: can change role (cannot set another owner) and ban/unban
+        (isOwner() && isActive()
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.role != 'owner');
+
+      // Owner only can delete user docs
+      allow delete: if isOwner() && isActive();
+    }
+
+    // ─────────────────────────────────────────────
+    //  PRODUCTS  /products/{productId}
+    //
+    //  Public read
+    //  admin + owner → full CRUD
+    // ─────────────────────────────────────────────
+    match /products/{productId} {
+
+      allow read: if true;
+
+      allow create: if isAdminOrOwner() && isActive()
+        && validStr(request.resource.data.title, 200)
+        && validNum(request.resource.data.price, 1, 1000000)
+        && validNum(request.resource.data.discount, 0, 90)
+        && validNum(request.resource.data.stock, 0, 100000)
+        && validStr(request.resource.data.category, 50)
+        && request.resource.data.image is string;
+
+      allow update: if isAdminOrOwner() && isActive()
+        && validNum(request.resource.data.price, 1, 1000000)
+        && validNum(request.resource.data.discount, 0, 90)
+        && validNum(request.resource.data.stock, 0, 100000);
+
+      allow delete: if isAdminOrOwner() && isActive();
+    }
+
+    // ─────────────────────────────────────────────
+    //  ORDERS  /orders/{orderId}
+    //
+    //  user        → create own, read own only
+    //  admin+owner → read all, update status, delete
+    // ─────────────────────────────────────────────
+    match /orders/{orderId} {
+
+      allow read: if isAuth() && isActive()
+        && (resource.data.userId == request.auth.uid || isAdminOrOwner());
+
+      allow create: if isAuth() && isActive()
+        && request.resource.data.userId        == request.auth.uid
+        && request.resource.data.status        == 'Pending'
+        && validStr(request.resource.data.address, 500)
+        && validStr(request.resource.data.transactionId, 100)
+        && validStr(request.resource.data.senderNumber, 20)
+        && request.resource.data.paymentMethod in ['bkash', 'nagad']
+        && validNum(request.resource.data.total, 1, 10000000)
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && request.resource.data.items.size() <= 50;
+
+      // Admin + owner: update status only — items/total/userId locked
+      allow update: if isAdminOrOwner() && isActive()
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.total  == resource.data.total
+        && request.resource.data.items  == resource.data.items
+        && request.resource.data.status in ['Pending','Confirmed','Shipped','Delivered','Cancelled'];
+
+      allow delete: if isAdminOrOwner() && isActive();
+    }
+
+    // ─────────────────────────────────────────────
+    //  CARTS  /carts/{uid}
+    //
+    //  Only the cart owner
+    // ─────────────────────────────────────────────
+    match /carts/{uid} {
+      allow read, write: if isSelf(uid) && isActive()
+        && (request.method == 'delete'
+            || (request.resource.data.items is list
+                && request.resource.data.items.size() <= 50));
+    }
+
+    // ─────────────────────────────────────────────
+    //  ANNOUNCEMENTS  /announcements/{annId}
+    //
+    //  Public read, owner-only write
+    // ─────────────────────────────────────────────
+    match /announcements/{annId} {
+      allow read: if true;
+      allow create, update: if isAdminOrOwner() && isActive()
+        && validStr(request.resource.data.text, 300);
+      allow delete: if isAdminOrOwner() && isActive();
+    }
+
+    // ─────────────────────────────────────────────
+    //  DEFAULT — DENY EVERYTHING ELSE
+    // ─────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+  }
+}

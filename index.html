@@ -126,18 +126,22 @@
     <script src="js/firebase-config.js"></script>
     <script src="js/auth.js"></script>
     <script>
-        // Role UI
-        const _baseUI = updateRoleSpecificUI;
+        // ── FAB visibility — called after auth.js sets userRole ──
+        // Safely extend without closure override
+        var _origUpdateRoleUI = updateRoleSpecificUI;
         updateRoleSpecificUI = function() {
-            if (typeof _baseUI === 'function') _baseUI();
-            const fab = document.getElementById('managementFab');
+            _origUpdateRoleUI();
+            var fab     = document.getElementById('managementFab');
+            var adminFab = document.getElementById('adminFab');
+            var ownerFab = document.getElementById('ownerFab');
             if (userRole === 'admin' || userRole === 'owner') {
                 fab.style.display = 'flex';
-                document.getElementById('adminFab').style.display = 'inline-flex';
+                adminFab.style.display = 'inline-flex';
+            } else {
+                fab.style.display = 'none';
+                adminFab.style.display = 'none';
             }
-            if (userRole === 'owner') {
-                document.getElementById('ownerFab').style.display = 'inline-flex';
-            }
+            ownerFab.style.display = (userRole === 'owner') ? 'inline-flex' : 'none';
         };
 
         function loadProducts(category = null, search = null) {
