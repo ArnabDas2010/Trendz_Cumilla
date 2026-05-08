@@ -3,6 +3,9 @@ let currentUser = null;
 let userRole = 'user';
 
 auth.onAuthStateChanged(function(user) {
+    // auth.js is not loaded on login.html, but guard anyway
+    if (window.location.pathname.includes('login.html')) return;
+
     currentUser = user;
     const authLinks = document.getElementById('authLinks');
     const userMenu  = document.getElementById('userMenu');
