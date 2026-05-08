@@ -81,8 +81,8 @@
                 }
             });
 
-            // Load orders
-            db.collection('orders').where('userId','==',user.uid).orderBy('createdAt','desc').get().then(snap => {
+            // Load orders — no orderBy to avoid missing composite index
+            db.collection('orders').where('userId','==',user.uid).get().then(snap => {
                 const list = document.getElementById('orderList');
                 if (snap.empty) {
                     list.innerHTML = `
@@ -94,13 +94,24 @@
                         </div>`;
                     return;
                 }
+
+                // Sort newest first in JS (avoids needing Firestore composite index)
+                const docs = [];
+                snap.forEach(doc => docs.push(doc));
+                docs.sort((a, b) => {
+                    const ta = a.data().createdAt ? a.data().createdAt.seconds : 0;
+                    const tb = b.data().createdAt ? b.data().createdAt.seconds : 0;
+                    return tb - ta;
+                });
+
                 let html = '';
-                snap.forEach(doc => {
+                docs.forEach(doc => {
                     const o    = doc.data();
                     const date = o.createdAt ? o.createdAt.toDate().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '—';
                     let cls = 'status-pending';
                     if (o.status === 'Confirmed' || o.status === 'Shipped') cls = 'status-confirmed';
                     if (o.status === 'Delivered') cls = 'status-delivered';
+                    if (o.status === 'Cancelled') cls = 'status-cancelled';
                     html += `
                         <div class="order-card">
                             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
@@ -111,19 +122,22 @@
                                 <span class="status-badge ${cls}">${o.status}</span>
                             </div>
                             <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px;">
-                                ${o.items.map(i=>`
+                                ${(o.items||[]).map(i=>`
                                     <div style="display:flex;justify-content:space-between;font-size:13px;">
                                         <span><span style="color:var(--accent);font-weight:700;">${i.quantity}×</span> ${i.title}</span>
                                         <span style="font-weight:600;">৳${i.price*i.quantity}</span>
                                     </div>`).join('')}
                             </div>
                             <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:1px dashed var(--border);">
-                                <span style="font-size:11px;color:var(--text-muted);">${o.paymentMethod.toUpperCase()}</span>
+                                <span style="font-size:11px;color:var(--text-muted);">${(o.paymentMethod||'').toUpperCase()}</span>
                                 <span style="font-weight:800;color:var(--primary);">৳${o.total}</span>
                             </div>
                         </div>`;
                 });
                 list.innerHTML = html;
+            }).catch(err => {
+                document.getElementById('orderList').innerHTML =
+                    `<p style="text-align:center;color:#c0392b;padding:30px 0;font-size:13px;"><i class="fa-solid fa-triangle-exclamation"></i> Failed to load orders.<br><small>${err.message}</small></p>`;
             });
         });
     </script>

@@ -146,13 +146,17 @@
         });
 
         function loadData() {
-            db.collection('products').orderBy('updatedAt','desc').onSnapshot(snap => {
+            db.collection('products').onSnapshot(snap => {
                 document.getElementById('totalProducts').textContent = snap.size;
                 renderProducts(snap);
             });
-            db.collection('orders').orderBy('createdAt','desc').onSnapshot(snap => {
+            db.collection('orders').onSnapshot(snap => {
                 document.getElementById('totalOrders').textContent = snap.size;
-                renderOrders(snap);
+                // Sort newest first in JS
+                const docs = [];
+                snap.forEach(d => docs.push(d));
+                docs.sort((a,b) => ((b.data().createdAt||{}).seconds||0) - ((a.data().createdAt||{}).seconds||0));
+                renderOrders({ empty: docs.length === 0, forEach: cb => docs.forEach(cb) });
             });
             db.collection('users').onSnapshot(snap => {
                 renderUsers(snap);
@@ -288,25 +292,31 @@
 
         function renderUsers(snap) {
             const list = document.getElementById('adminUserList');
-            const isOwner = window._currentAdminRole === 'owner';
+            const isOwnerViewing = window._currentAdminRole === 'owner';
+            const roleStyle = {
+                owner: { color: '#fff', bg: '#1a1a2e', label: '👑 Owner' },
+                admin: { color: 'var(--accent)', bg: 'rgba(200,169,110,0.15)', label: '🛡 Admin' },
+                user:  { color: 'var(--text-muted)', bg: 'var(--surface)', label: '👤 User' }
+            };
             let html = '';
             snap.forEach(doc => {
-                const u = doc.data();
-                if (u.role === 'owner') return;
+                const u      = doc.data();
                 const banned = u.status === 'banned';
-                const roleColor = u.role === 'admin' ? 'var(--accent)' : 'var(--text-muted)';
-                const roleBg    = u.role === 'admin' ? 'rgba(200,169,110,0.15)' : 'var(--surface)';
+                const rs     = roleStyle[u.role] || roleStyle.user;
+                const isOwnerRow = u.role === 'owner';
+                // Owner viewing: show buttons for admin/user rows only
+                const showButtons = isOwnerViewing && !isOwnerRow;
                 html += `
-                    <div class="order-card">
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:${isOwner ? 14 : 6}px;">
+                    <div class="order-card" style="${isOwnerRow ? 'border:1.5px solid rgba(26,26,46,0.18);' : ''}">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:${showButtons ? 14 : 0}px;">
                             <div style="min-width:0;flex:1;">
                                 <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.name || 'Anonymous'}</div>
-                                <div style="font-size:12px;color:var(--text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.email}</div>
+                                <div style="font-size:12px;color:var(--text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.email || '—'}</div>
                                 ${banned ? '<div style="font-size:10px;color:#c0392b;font-weight:700;margin-top:4px;"><i class="fa-solid fa-ban"></i> BANNED</div>' : ''}
                             </div>
-                            <span style="flex-shrink:0;font-size:10px;font-weight:700;background:${roleBg};color:${roleColor};padding:4px 10px;border-radius:50px;text-transform:uppercase;letter-spacing:0.5px;margin-left:8px;">${u.role}</span>
+                            <span style="flex-shrink:0;font-size:10px;font-weight:700;background:${rs.bg};color:${rs.color};padding:4px 10px;border-radius:50px;text-transform:uppercase;letter-spacing:0.5px;margin-left:8px;border:${isOwnerRow?'1px solid rgba(26,26,46,0.25)':'none'};">${rs.label}</span>
                         </div>
-                        ${isOwner ? `
+                        ${showButtons ? `
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
                             <button class="btn btn-secondary" style="font-size:11px;padding:10px;" onclick="updateRole('${doc.id}','${u.role === 'admin' ? 'user' : 'admin'}')">
                                 <i class="fa-solid fa-user-shield"></i> ${u.role === 'admin' ? 'DEMOTE' : 'MAKE ADMIN'}
