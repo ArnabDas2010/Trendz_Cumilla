@@ -62,6 +62,12 @@
                 <p style="color:var(--text-muted);font-size:12px;">Premium Fashion — Comilla</p>
             </div>
 
+            <!-- Page loader (shown during sign-in / role fetch) -->
+            <div id="pageLoader" style="display:none;text-align:center;padding:40px 0;">
+                <div class="loading-spinner" style="margin:0 auto 14px;"></div>
+                <p style="font-size:13px;color:var(--text-muted);">Please wait...</p>
+            </div>
+
             <div id="mainCard" class="form-card">
 
                 <!-- Google Button -->
@@ -146,26 +152,34 @@
             });
         }
 
-        // ── Redirect if already logged in ─────────
-        auth.onAuthStateChanged(function(u) {
-            if (u) goHome(u);
-        });
-
-        function goHome(u) {
-            getUserRole(u.uid).then(function(role) {
-                if (role === 'owner')      window.location.href = 'owner.html';
-                else if (role === 'admin') window.location.href = 'admin.html';
-                else                       window.location.href = 'index.html';
-            });
-        }
-
         function showErr(msg) {
             var el = document.getElementById('authError');
             el.textContent = msg;
             el.style.display = 'block';
         }
 
-        // ── Google Popup Sign-In ───────────────────
+        function navigateByRole(role) {
+            if (role === 'owner')      window.location.replace('owner.html');
+            else if (role === 'admin') window.location.replace('admin.html');
+            else                       window.location.replace('index.html');
+        }
+
+        function showPageLoader(msg) {
+            document.getElementById('mainCard').style.display = 'none';
+            var loader = document.getElementById('pageLoader');
+            loader.querySelector('p').textContent = msg || 'Please wait...';
+            loader.style.display = 'block';
+        }
+
+        // ── If already logged in, redirect immediately ────
+        auth.onAuthStateChanged(function(u) {
+            if (!u) return;
+            // Already authenticated — show loader and go home
+            showPageLoader('Signing you in...');
+            getUserRole(u.uid).then(navigateByRole);
+        });
+
+        // ── Google Popup Sign-In ───────────────────────────
         function handleGoogle() {
             var btn = document.getElementById('googleBtn');
             btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Signing in...';
@@ -174,7 +188,9 @@
 
             signInWithGoogle(
                 function(role) {
-                    // onSuccess — goHome handles nav via onAuthStateChanged
+                    // Popup done, Firestore saved — navigate directly with known role
+                    showPageLoader('Signing you in...');
+                    navigateByRole(role);
                 },
                 function(err) {
                     btn.innerHTML = '<svg class="g-icon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg> Continue with Google';
@@ -189,7 +205,7 @@
         // ── Email/Password Sign In ─────────────────
         document.getElementById('loginForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const btn = document.getElementById('loginBtn');
+            var btn = document.getElementById('loginBtn');
             document.getElementById('authError').style.display = 'none';
             btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
             btn.disabled = true;
@@ -197,19 +213,23 @@
             auth.signInWithEmailAndPassword(
                 document.getElementById('loginEmail').value,
                 document.getElementById('loginPassword').value
-            ).then(cred => redirect(cred.user))
-             .catch(err => {
+            ).then(function(cred) {
+                showPageLoader('Signing you in...');
+                return getUserRole(cred.user.uid);
+            }).then(function(role) {
+                navigateByRole(role);
+            }).catch(function(err) {
                 showErr(err.message);
                 btn.innerHTML = 'SIGN IN <i class="fa-solid fa-arrow-right"></i>';
                 btn.disabled = false;
-             });
+            });
         });
 
         // ── Email/Password Register ────────────────
         document.getElementById('registerForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const btn  = document.getElementById('regBtn');
-            const name = document.getElementById('regName').value.trim();
+            var btn  = document.getElementById('regBtn');
+            var name = document.getElementById('regName').value.trim();
             document.getElementById('authError').style.display = 'none';
             btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
             btn.disabled = true;
@@ -217,20 +237,24 @@
             auth.createUserWithEmailAndPassword(
                 document.getElementById('regEmail').value,
                 document.getElementById('regPassword').value
-            ).then(cred => db.collection('users').doc(cred.user.uid).set({
-                name,
-                email:     cred.user.email,
-                photoURL:  '',
-                role:      'user',
-                status:    'active',
-                provider:  'email',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            })).then(() => { window.location.href = 'index.html'; })
-              .catch(err => {
+            ).then(function(cred) {
+                return db.collection('users').doc(cred.user.uid).set({
+                    name:      name,
+                    email:     cred.user.email,
+                    photoURL:  '',
+                    role:      'user',
+                    status:    'active',
+                    provider:  'email',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }).then(function() {
+                showPageLoader('Setting up your account...');
+                window.location.replace('index.html');
+            }).catch(function(err) {
                 showErr(err.message);
                 btn.innerHTML = 'CREATE ACCOUNT <i class="fa-solid fa-arrow-right"></i>';
                 btn.disabled = false;
-              });
+            });
         });
 
         // Open register tab if URL has ?tab=register
