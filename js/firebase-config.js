@@ -23,62 +23,46 @@ googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 // ── Role fetch ────────────────────────────────────────────
 function getUserRole(uid) {
-    return db.collection('users').doc(uid).get().then(doc => {
+    return db.collection('users').doc(uid).get().then(function(doc) {
         return doc.exists ? doc.data().role : 'user';
     });
 }
 
-// ── Google Redirect Sign-In ───────────────────────────────
-function signInWithGoogle() {
-    sessionStorage.setItem('googleAuthPending', '1');
-    return auth.signInWithRedirect(googleProvider);
+// ── Save/update Google user profile in Firestore ─────────
+function saveGoogleUser(user) {
+    var userRef = db.collection('users').doc(user.uid);
+    return userRef.get().then(function(doc) {
+        if (!doc.exists) {
+            return userRef.set({
+                name:      user.displayName || 'Fashion Lover',
+                email:     user.email       || '',
+                photoURL:  user.photoURL    || '',
+                role:      'user',
+                status:    'active',
+                provider:  'google',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        } else {
+            return userRef.update({
+                name:     user.displayName || doc.data().name,
+                photoURL: user.photoURL    || doc.data().photoURL || ''
+            });
+        }
+    });
 }
 
-// ── Process redirect result (call on every page load) ─────
-function handleGoogleRedirectResult() {
-    return auth.getRedirectResult().then(function(result) {
-        // No redirect happened (normal page load) — resolve cleanly
-        if (!result || !result.user) {
-            sessionStorage.removeItem('googleAuthPending');
-            return null;
-        }
-
-        var user    = result.user;
-        var userRef = db.collection('users').doc(user.uid);
-
-        return userRef.get().then(function(doc) {
-            if (!doc.exists) {
-                // First time Google login — create profile
-                return userRef.set({
-                    name:      user.displayName  || 'Fashion Lover',
-                    email:     user.email        || '',
-                    photoURL:  user.photoURL     || '',
-                    role:      'user',
-                    status:    'active',
-                    provider:  'google',
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            } else {
-                // Returning Google user — sync name/photo
-                return userRef.update({
-                    name:     user.displayName || doc.data().name,
-                    photoURL: user.photoURL    || doc.data().photoURL || ''
-                });
-            }
-        }).then(function() {
-            return getUserRole(user.uid);
-        }).then(function(role) {
-            sessionStorage.removeItem('googleAuthPending');
-            // Small delay to ensure Firestore write is settled before redirect
-            setTimeout(function() {
-                if (role === 'owner')      window.location.href = 'owner.html';
-                else if (role === 'admin') window.location.href = 'admin.html';
-                else                       window.location.href = 'index.html';
-            }, 300);
+// ── Google Popup Sign-In (replaces redirect — more reliable on mobile) ───
+function signInWithGoogle(onSuccess, onError) {
+    auth.signInWithPopup(googleProvider)
+        .then(function(result) {
+            return saveGoogleUser(result.user).then(function() {
+                return getUserRole(result.user.uid);
+            });
+        })
+        .then(function(role) {
+            if (typeof onSuccess === 'function') onSuccess(role);
+        })
+        .catch(function(err) {
+            if (typeof onError === 'function') onError(err);
         });
-
-    }).catch(function(err) {
-        sessionStorage.removeItem('googleAuthPending');
-        return Promise.reject(err);
-    });
 }
